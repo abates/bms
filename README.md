@@ -78,9 +78,18 @@ level.  The Movies collection has a single Star Trek collection with all the
 Star Trek movies contained with it.  Likewise, the House sub-collection is
 divided into one sub-collection for each season of the show.
 
+In addition to folders and collections, an asset can be tagged with arbitrary
+tags.  Tags are simple organizational indicators used mostly for filtering.
+
 Users have access to the assets based on filters.  A user can only access the
 assets that are exposed to him via filters applied to his profile.  A user with
 no filters would have access to all assets/collections.  Filters can be applied
 directly to a user or to a group and users can belong to zero or more groups.
-Filters match on attributes of the assets' metadata as well as their folder and
-collection memberships.
+Filters currently only match on folder and collection memberships as well as
+asset tags.
+
+# Assets
+
+In its most basic form, an Asset is simply anything that can be served up using
+HTTP.  All assets have a name, a globally unique identifier, a folder, an
+optional list of collections, an optional list of tags and its metadata.
