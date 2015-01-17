@@ -95,7 +95,10 @@ In its most basic form, an Asset is simply anything that can be served up using
 HTTP.  All assets have a name, a globally unique identifier, a folder, an
 optional list of collections, an optional list of tags and its metadata.
 
-Path        | Verb | Description
-------------|------|---------------------------------------------------
-/assets/:id |  GET | Retrieve the content of a specific asset by its ID
-/assets/:id |  GET | Retrieve the content of a specific asset by its ID
+Path                 |  Verb  | Description
+---------------------|--------|---------------------------------------------------
+/assets              | POST   | Create a new asset
+/assets/:id          | DELETE | Delete an asset
+/assets/:id          | GET    | Retrieve the content of a specific asset by its ID
+/assets/:id/metadata | PUT    | Update an asset's metadata
+
