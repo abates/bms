@@ -15,8 +15,8 @@ instance, a Movie asset may have metadata indicating the studio that produced
 the movie, the list of lead actors as well as a plot synopsis.
 
 Assets belong to folders and folders can have one ore more sub-folders.  The
-system has a root folder that top-level folders belong to.  However, assets can
-not be assigned to the root folder.
+system has a root folder that top-level folders belong to.  Folders are
+themselves specialized assets.  Therefore, a folder also can have metadata.
 
 Folder Layout Example:
 ```
@@ -79,7 +79,8 @@ Star Trek movies contained with it.  Likewise, the House sub-collection is
 divided into one sub-collection for each season of the show.
 
 In addition to folders and collections, an asset can be tagged with arbitrary
-tags.  Tags are simple organizational indicators used mostly for filtering.
+strings.  Tags are simple organizational indicators used mostly for filtering.
+Tags can be single or multi-word strings.
 
 Users have access to the assets based on filters.  A user can only access the
 assets that are exposed to him via filters applied to his profile.  A user with
@@ -93,3 +94,10 @@ asset tags.
 In its most basic form, an Asset is simply anything that can be served up using
 HTTP.  All assets have a name, a globally unique identifier, a folder, an
 optional list of collections, an optional list of tags and its metadata.
+
+Path        | Verb | Description
+------------|------|---------------------------------------------------
+/assets/:id |  GET | Retrieve the content of a specific asset by its ID
+------------|------|---------------------------------------------------
+/assets/:id |  GET | Retrieve the content of a specific asset by its ID
+------------|------|---------------------------------------------------
