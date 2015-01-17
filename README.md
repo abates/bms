@@ -98,6 +98,4 @@ optional list of collections, an optional list of tags and its metadata.
 Path        | Verb | Description
 ------------|------|---------------------------------------------------
 /assets/:id |  GET | Retrieve the content of a specific asset by its ID
-------------|------|---------------------------------------------------
 /assets/:id |  GET | Retrieve the content of a specific asset by its ID
-------------|------|---------------------------------------------------
