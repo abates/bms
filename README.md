@@ -14,9 +14,10 @@ Assets have meta data, and that metadata is specified by the asset type.  For
 instance, a Movie asset may have metadata indicating the studio that produced
 the movie, the list of lead actors as well as a plot synopsis.
 
-Assets belong to folders and folders can have one ore more sub-folders.  The
-system has a root folder that top-level folders belong to.  Folders are
-themselves specialized assets.  Therefore, a folder also can have metadata.
+Assets belong to collections and collections can have one ore more
+sub-collections.  The system has a root collection that top-level collections
+belong to.  Collections are themselves specialized assets.  Therefore, a
+collection can have metadata.
 
 Folder Layout Example:
 ```
@@ -37,29 +38,6 @@ Folder Layout Example:
 │   └── Star Trek Into Darkness (2013)
 └── TV Shows
     ├── House
-    ├── MASH
-    └── Police Squad
-```
-
-Assets can (but on't have to) belong to one ore more collections, and a
-collection of assets can be contained within another collection.
-```
-├── Movies
-│   └── Star Trek
-│       ├── Star Trek: The Motion Picture (1979)
-│       ├── Star Trek II The Wrath of Khan (1982)
-│       ├── Star Trek III The Search for Spock (1984)
-│       ├── Star Trek IV The Voyage Home (1986)
-│       ├── Star Trek V: The Final Frontier (1989)
-│       ├── Star Trek VI The Undiscovered Country (1991)
-│       ├── Star Trek: Generations (1994)
-│       ├── Star Trek First Contact (1996)
-│       ├── Star Trek: Insurrection (1998)
-│       ├── Star Trek Nemesis (2002)
-│       ├── Star Trek (2009)
-│       └── Star Trek Into Darkness (2013)
-└── TV Shows
-    ├── House
     │   ├── Season 1
     │   ├── Season 2
     │   ├── Season 3
@@ -73,21 +51,50 @@ collection of assets can be contained within another collection.
         └── Season 1
 ```
 
-In this case, there is a Movies collection and a TV Shows collection at the top
-level.  The Movies collection has a single Star Trek collection with all the
-Star Trek movies contained with it.  Likewise, the House sub-collection is
-divided into one sub-collection for each season of the show.
+Since assets can belong to more than one collection, it is possible to display
+the asset hierarchy in more than one way.  The above assets could also belong to
+collections such that the following layout is displayed:
 
-In addition to folders and collections, an asset can be tagged with arbitrary
-strings.  Tags are simple organizational indicators used mostly for filtering.
-Tags can be single or multi-word strings.
+```
+├── Movies
+│   ├── Avatar
+│   ├── Spies Like Us
+│   ├── Star Trek: The Motion Picture (1979)
+│   ├── Star Trek II The Wrath of Khan (1982)
+│   ├── Star Trek III The Search for Spock (1984)
+│   ├── Star Trek IV The Voyage Home (1986)
+│   ├── Star Trek V: The Final Frontier (1989)
+│   ├── Star Trek VI The Undiscovered Country (1991)
+│   ├── Star Trek: Generations (1994)
+│   ├── Star Trek First Contact (1996)
+│   ├── Star Trek: Insurrection (1998)
+│   ├── Star Trek Nemesis (2002)
+│   ├── Star Trek (2009)
+│   ├── Star Trek Into Darkness (2013)
+│   └── Star Trek
+│       ├── Star Trek: The Motion Picture (1979)
+│       ├── Star Trek II The Wrath of Khan (1982)
+│       ├── Star Trek III The Search for Spock (1984)
+│       ├── Star Trek IV The Voyage Home (1986)
+│       ├── Star Trek V: The Final Frontier (1989)
+│       ├── Star Trek VI The Undiscovered Country (1991)
+│       ├── Star Trek: Generations (1994)
+│       ├── Star Trek First Contact (1996)
+│       ├── Star Trek: Insurrection (1998)
+│       ├── Star Trek Nemesis (2002)
+│       ├── Star Trek (2009)
+│       └── Star Trek Into Darkness (2013)
+```
+
+In this case, the Movies collection contains a Star Trek collection.  The Star
+Trek movies belong to both collections.  Therefore, when browsing the
+collections, one would see the Star Trek movies in two places.
 
 Users have access to the assets based on filters.  A user can only access the
 assets that are exposed to him via filters applied to his profile.  A user with
 no filters would have access to all assets/collections.  Filters can be applied
 directly to a user or to a group and users can belong to zero or more groups.
-Filters currently only match on folder and collection memberships as well as
-asset tags.
+Filters currently only match on collection membership.
 
 # Assets
 
@@ -96,11 +103,27 @@ HTTP.  All assets have a name, a globally unique identifier, a folder, an
 optional list of collections, an optional list of tags and its metadata.
 
 Path                        |  Verb  | Description
-----------------------------|--------|-------------------------------------
+----------------------------|--------|--------------------------------------------------------
 /assets                     | POST   | Create a new asset
-/assets/:id                 | GET    | Retrieve a specific asset's metadata
+/assets/:id(.:extension)    | GET    | Retrieve a specific asset
 /assets/:id                 | PUT    | Update an asset's metadata
 /assets/:id                 | DELETE | Delete an asset
 /assets/:id/render          | GET    | Retrieve the actual asset
-/assets/:id/render/:segment | GET    | If the asset type supports segments, then
-                                       retreive the given segment
+/assets/:id/render/:segment | GET    | Retrieve a specific segment for an asset (if supported)
+
+# Collections
+
+A collection is a specialized asset that can contain other assets or
+collections.  An asset always has an ID and a name and can include optional
+metadata.  There can be different types of collections, and the collection types
+can specify the metadata that's included.
+
+Path                             |  Verb  | Description
+---------------------------------|--------|--------------------------------------------------------
+/collections                     | POST   | Create a new collection
+/collections/:id                 | GET    | Retrieve a collection
+/collections/:id                 | PUT    | Update a collections's metadata
+/collections/:id                 | DELETE | Delete a collection
+/collections/search              | GET    | Search the root collection
+/collections/:id/search          | GET    | Search a specific collection
+
