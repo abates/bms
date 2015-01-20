@@ -124,6 +124,23 @@ reponse code with the appropriate content.
 Two types are involved in processing requests for assets: the AssetDB type and
 the Asset type.  AssetDB is the interface to searching for and retrieving
 Assets.  Likewise, Assets are the interface to specific assets.
+
+```Go
+type AssetDB interface {
+  Find(id uint64) (Asset *)
+  Search(searchString string) ([] Asset *)
+}
+```
+
+```Go
+type Asset interface {
+  Meta(resp http.ResponseWriter *)
+  Format(extn string, resp http.ResonseWriter *)
+  Render(http.ResponseWriter *)
+  Segment(segmentId uint32, http.ResponseWriter *)
+}
+```
+
 # Collections
 
 A collection is a specialized asset that can contain other assets or
