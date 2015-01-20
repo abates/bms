@@ -1,4 +1,4 @@
-# Blasted Media Server
+# Blasted! Media Server
 
 The BMS is a simple media server designed to serve assets of various types.
 Examples of assets are:
