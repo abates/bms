@@ -135,7 +135,7 @@ type AssetDB interface {
 ```Go
 type Asset interface {
   Meta(resp http.ResponseWriter *)
-  Format(extn string, resp http.ResonseWriter *)
+  Format(extn string, resp http.ResponseWriter *)
   Render(http.ResponseWriter *)
   Segment(segmentId uint32, http.ResponseWriter *)
 }
