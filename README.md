@@ -111,6 +111,8 @@ Path                        |  Verb  | Description
 /assets/:id/render          | GET    | Retrieve the actual asset
 /assets/:id/render/:segment | GET    | Retrieve a specific segment for an asset (if supported)
 
+![Asset handler flow chart](asset_handler.png)
+
 # Collections
 
 A collection is a specialized asset that can contain other assets or
