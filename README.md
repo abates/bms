@@ -111,8 +111,19 @@ Path                        |  Verb  | Description
 /assets/:id/render          | GET    | Retrieve the actual asset
 /assets/:id/render/:segment | GET    | Retrieve a specific segment for an asset (if supported)
 
+Inbound requests, for specific assets, follow the following pre-defined flow:
+
 ![Asset handler flow chart](asset_handler.png)
 
+If an error occurs while retrieving the asset, then the handler will return a
+500 response code.  If the asset is not found, then the handler returns 404.
+Once the asset is found, the appropriate sub-url is routed.  Any sub-url that is
+not supported will trigger a 404.  Supported sub-urls should return a 200
+reponse code with the appropriate content.
+
+Two types are involved in processing requests for assets: the AssetDB type and
+the Asset type.  AssetDB is the interface to searching for and retrieving
+Assets.  Likewise, Assets are the interface to specific assets.
 # Collections
 
 A collection is a specialized asset that can contain other assets or
