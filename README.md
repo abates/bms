@@ -126,18 +126,18 @@ the Asset type.  AssetDB is the interface to searching for and retrieving
 Assets.  Likewise, Assets are the interface to specific assets.
 
 ```Go
-type AssetDB interface {
-  Find(id uint64) (Asset *)
-  Search(searchString string) ([] Asset *)
+type Db interface {
+	Find(id uint32) *Asset
+	Search(expression string) []*Asset
 }
 ```
 
 ```Go
 type Asset interface {
-  Meta(resp http.ResponseWriter *)
-  Format(extn string, resp http.ResponseWriter *)
-  Render(http.ResponseWriter *)
-  Segment(segmentId uint32, http.ResponseWriter *)
+	Meta(resp *http.ResponseWriter)
+	Format(extn string, resp *http.ResponseWriter)
+	Render(resp *http.ResponseWriter)
+	Segment(resp *http.ResponseWriter)
 }
 ```
 
