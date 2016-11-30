@@ -8,7 +8,11 @@ import (
 	"strings"
 )
 
-var um *UserManager
+var (
+	um        *UserManager
+	db        Database
+	backendFs afero.Fs
+)
 
 func basicAuthHandler() gin.HandlerFunc {
 	realm := "Basic realm=" + strconv.Quote("WebDav Realm")
@@ -30,7 +34,9 @@ func basicAuthHandler() gin.HandlerFunc {
 }
 
 func init() {
-	um = NewUserManager(afero.NewBasePathFs(afero.NewOsFs(), "/Users/abates/bms"))
+	db = NewMapDatabase()
+	backendFs = afero.NewBasePathFs(afero.NewOsFs(), "/Users/abates/bms")
+	um = NewUserManager()
 	if user, err := um.Add("user1", "1111"); err == nil {
 		user.fs.Mkdir("/dir1", 0700)
 		user.fs.Mkdir("/dir1/dir3", 0700)

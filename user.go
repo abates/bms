@@ -41,10 +41,9 @@ type UserManager struct {
 	fs afero.Fs
 }
 
-func NewUserManager(fs afero.Fs) *UserManager {
+func NewUserManager() *UserManager {
 	return &UserManager{
 		db: make(map[string]*User),
-		fs: fs,
 	}
 }
 
@@ -55,7 +54,7 @@ func (um *UserManager) Add(username, password string) (user *User, err error) {
 		user = &User{
 			Username: username,
 		}
-		user.fs = NewFolderFileSystem(user, um.fs)
+		user.fs = NewFolderFileSystem(user)
 		user.SetPassword(password)
 		um.db[username] = user
 	}

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/spf13/afero"
 	"golang.org/x/net/context"
 	"golang.org/x/net/webdav"
 	"net/http"
@@ -24,9 +23,9 @@ func NewWebdavFileSystem(user *User) (wfs *WebdavFileSystem, err error) {
 				if err != nil {
 					logger.WithFields(map[string]interface{}{
 						"method": r.Method,
-						"url":    r.Url,
+						"url":    r.URL,
 						"error":  err,
-					}).Warn("%s Failed", r.Method)
+					}).Warnf("%s Failed", r.Method)
 				}
 			},
 		},
@@ -75,16 +74,14 @@ type FileSystem interface {
 }
 
 type FolderFileSystem struct {
-	user    *User
-	root    *Folder
-	backend afero.Fs
+	user *User
+	root *Folder
 }
 
-func NewFolderFileSystem(user *User, backend afero.Fs) *FolderFileSystem {
+func NewFolderFileSystem(user *User) *FolderFileSystem {
 	return &FolderFileSystem{
-		user:    user,
-		root:    NewFolder("", 0700),
-		backend: backend,
+		user: user,
+		root: NewFolder("", 0700),
 	}
 }
 
@@ -151,8 +148,8 @@ func (fs *FolderFileSystem) OpenFile(name string, flag int, perm os.FileMode) (a
 	if os.IsNotExist(err) {
 		if hasFlags(flag, os.O_CREATE) {
 			err = nil
-			file := NewFile(fs.backend, filename, perm)
-			err = fs.backend.MkdirAll(path.Dir(file.realPath), 0700)
+			file := NewFile(backendFs, filename, perm)
+			err = backendFs.MkdirAll(path.Dir(file.realPath), 0700)
 			if err == nil {
 				asset = file
 				err = base.addAsset(file)
@@ -166,7 +163,7 @@ func (fs *FolderFileSystem) OpenFile(name string, flag int, perm os.FileMode) (a
 			return nil, &os.PathError{"open", name, ErrIsFolder}
 		}
 	case *File:
-		file.Asset, err = fs.backend.OpenFile(file.realPath, flag, 0600)
+		file.File, err = backendFs.OpenFile(file.realPath, flag, 0600)
 	}
 	return asset, err
 }
@@ -177,10 +174,11 @@ func (fs *FolderFileSystem) RemoveAll(path string) error {
 
 func (fs *FolderFileSystem) Rename(oldName, newName string) error { return nil }
 
-func (fs *FolderFileSystem) Stat(name string) (fi os.FileInfo, err error) {
+func (fs *FolderFileSystem) Stat(name string) (os.FileInfo, error) {
 	asset, err := fs.root.Find(cleanPath(name))
 	if err == nil {
-		fi, err = asset.Stat()
+		return asset.Stat()
 	}
-	return
+
+	return nil, err
 }

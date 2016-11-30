@@ -8,43 +8,33 @@ import (
 	"strings"
 )
 
-type FileInfo struct {
-	os.FileInfo
-	name string
-}
-
-func (f FileInfo) Name() string { return f.name }
-
 type File struct {
-	Asset
+	afero.File
 	backend  afero.Fs
 	name     string
+	id       ID
 	owner    *User
-	perm     os.FileMode
+	mode     os.FileMode
 	realPath string
 }
 
-func NewFile(backend afero.Fs, name string, perm os.FileMode) *File {
+func NewFile(backend afero.Fs, name string, mode os.FileMode) *File {
 	return &File{
 		backend:  backend,
 		name:     name,
 		realPath: newPath(),
-		perm:     perm,
+		mode:     mode,
 	}
 }
 
-func (f *File) IsDir() bool                { return false }
+func (f *File) ID() ID                     { return f.id }
+func (f *File) Mode() os.FileMode          { return f.mode }
 func (f *File) Name() string               { return f.name }
 func (f *File) Owner() *User               { return f.owner }
 func (f *File) SetOwner(owner *User) error { f.owner = owner; return nil }
 
 func (f *File) Stat() (os.FileInfo, error) {
-	var err error
-	fi := FileInfo{
-		name: f.Name(),
-	}
-	fi.FileInfo, err = f.backend.Stat(f.realPath)
-	return fi, err
+	return NewFileInfo(f)
 }
 
 func (f *File) String() string { return f.name }
