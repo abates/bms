@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/net/context"
 	"golang.org/x/net/webdav"
+	"net/http"
 	"os"
 	"path"
 	"strings"
@@ -19,6 +20,15 @@ func NewWebdavFileSystem(user *User) (wfs *WebdavFileSystem, err error) {
 		Handler: &webdav.Handler{
 			Prefix:     "/webdav",
 			LockSystem: webdav.NewMemLS(),
+			Logger: func(r *http.Request, err error) {
+				if err != nil {
+					logger.WithFields(map[string]interface{}{
+						"method": r.Method,
+						"url":    r.Url,
+						"error":  err,
+					}).Warn("%s Failed", r.Method)
+				}
+			},
 		},
 		root: user.fs,
 	}
@@ -125,7 +135,6 @@ func (fs *FolderFileSystem) OpenFile(name string, flag int, perm os.FileMode) (a
 		if hasFlags(flag, os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_CREATE|os.O_TRUNC) {
 			return nil, &os.PathError{"open", name, ErrIsFolder}
 		}
-		logger.Infof("OpenFile Returning root filesystem %s", fs.root.String())
 		return fs.root, nil
 	}
 
@@ -135,7 +144,6 @@ func (fs *FolderFileSystem) OpenFile(name string, flag int, perm os.FileMode) (a
 	if folder, ok := asset.(*Folder); ok {
 		base = folder
 	} else {
-		logger.Infof("OpenFile base path %s is not a folder", dirname)
 		return nil, &os.PathError{"open", dirname, ErrNotFolder}
 	}
 
@@ -143,7 +151,7 @@ func (fs *FolderFileSystem) OpenFile(name string, flag int, perm os.FileMode) (a
 	if os.IsNotExist(err) {
 		if hasFlags(flag, os.O_CREATE) {
 			err = nil
-			file := NewFile(filename, perm)
+			file := NewFile(fs.backend, filename, perm)
 			err = fs.backend.MkdirAll(path.Dir(file.realPath), 0700)
 			if err == nil {
 				asset = file
@@ -152,15 +160,13 @@ func (fs *FolderFileSystem) OpenFile(name string, flag int, perm os.FileMode) (a
 		}
 	}
 
-	logger.Infof("OpenFile found a %T named %s", asset, asset.Name())
 	switch file := asset.(type) {
 	case *Folder:
 		if hasFlags(flag, os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_CREATE|os.O_TRUNC) {
 			return nil, &os.PathError{"open", name, ErrIsFolder}
 		}
 	case *File:
-		file.File, err = fs.backend.OpenFile(file.realPath, flag, 0600)
-		logger.Infof("Opening file %s File: %v flag: %s err: %v", file.realPath, file.File, flagString(flag), err)
+		file.Asset, err = fs.backend.OpenFile(file.realPath, flag, 0600)
 	}
 	return asset, err
 }

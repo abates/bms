@@ -8,16 +8,25 @@ import (
 	"strings"
 )
 
+type FileInfo struct {
+	os.FileInfo
+	name string
+}
+
+func (f FileInfo) Name() string { return f.name }
+
 type File struct {
-	afero.File
+	Asset
+	backend  afero.Fs
 	name     string
 	owner    *User
 	perm     os.FileMode
 	realPath string
 }
 
-func NewFile(name string, perm os.FileMode) *File {
+func NewFile(backend afero.Fs, name string, perm os.FileMode) *File {
 	return &File{
+		backend:  backend,
 		name:     name,
 		realPath: newPath(),
 		perm:     perm,
@@ -28,12 +37,17 @@ func (f *File) IsDir() bool                { return false }
 func (f *File) Name() string               { return f.name }
 func (f *File) Owner() *User               { return f.owner }
 func (f *File) SetOwner(owner *User) error { f.owner = owner; return nil }
-func (f *File) String() string             { return f.name }
 
-func (f *File) Write(b []byte) (int, error) {
-	logger.Infof("Writing %d bytes to %s", len(b), f.name)
-	return f.File.Write(b)
+func (f *File) Stat() (os.FileInfo, error) {
+	var err error
+	fi := FileInfo{
+		name: f.Name(),
+	}
+	fi.FileInfo, err = f.backend.Stat(f.realPath)
+	return fi, err
 }
+
+func (f *File) String() string { return f.name }
 
 func newPath() string {
 	path := make([]string, 0)

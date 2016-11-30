@@ -36,7 +36,6 @@ func (folder *Folder) addAsset(asset Asset) error {
 	}
 	folder.children[asset.Name()] = asset
 	folder.modTime = time.Now()
-	logger.Infof("Adding %s to '%s'.  Children are now %v", asset.Name(), folder.String(), folder.children)
 	return nil
 }
 
@@ -86,15 +85,15 @@ func (folder *Folder) Readdir(count int) ([]os.FileInfo, error) {
 	children := make([]os.FileInfo, 0)
 	for name, child := range folder.children {
 		if fi, err := child.Stat(); err == nil {
-			logger.Infof("Readdir name: %s", fi.Name())
 			children = append(children, fi)
 		} else {
-			logger.Infof("Readdir name %s/%s error %v", folder.Name(), name, err)
+			logger.WithFields(map[string]interface{}{
+				"parent": folder.Name(),
+				"child":  name,
+				"error":  err,
+			}).Warn("Readdir failed to stat %s/%s", folder.Name(), name)
 		}
 	}
-	logger.WithFields(map[string]interface{}{
-		"children": children,
-	}).Infof("Readdir %s", folder.name)
 	return children, nil
 }
 
