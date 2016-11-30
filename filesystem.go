@@ -11,7 +11,7 @@ import (
 
 type WebdavFileSystem struct {
 	*webdav.Handler
-	root *FileSystem
+	root FileSystem
 }
 
 func NewWebdavFileSystem(user *User) (wfs *WebdavFileSystem, err error) {
@@ -56,21 +56,29 @@ func cleanPath(name string) []string {
 	return strings.Split(name, "/")[1:]
 }
 
-type FileSystem struct {
+type FileSystem interface {
+	Mkdir(name string, perm os.FileMode) error
+	OpenFile(name string, flag int, perm os.FileMode) (Asset, error)
+	RemoveAll(path string) error
+	Rename(oldName, newName string) error
+	Stat(name string) (os.FileInfo, error)
+}
+
+type FolderFileSystem struct {
 	user    *User
 	root    *Folder
 	backend afero.Fs
 }
 
-func NewFileSystem(user *User, backend afero.Fs) *FileSystem {
-	return &FileSystem{
+func NewFolderFileSystem(user *User, backend afero.Fs) *FolderFileSystem {
+	return &FolderFileSystem{
 		user:    user,
 		root:    NewFolder("", 0700),
 		backend: backend,
 	}
 }
 
-func (fs *FileSystem) Mkdir(name string, perm os.FileMode) error {
+func (fs *FolderFileSystem) Mkdir(name string, perm os.FileMode) error {
 	folder, err := fs.root.Mkfolder(cleanPath(name), perm)
 	if err == nil {
 		err = folder.SetOwner(fs.user)
@@ -108,7 +116,7 @@ func hasFlags(flag, search int) bool {
 	return flag&search > 0
 }
 
-func (fs *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (asset Asset, err error) {
+func (fs *FolderFileSystem) OpenFile(name string, flag int, perm os.FileMode) (asset Asset, err error) {
 	name = path.Clean(name)
 	dirname := path.Dir(name)
 	filename := path.Base(name)
@@ -157,13 +165,13 @@ func (fs *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (asset A
 	return asset, err
 }
 
-func (fs *FileSystem) RemoveAll(path string) error {
+func (fs *FolderFileSystem) RemoveAll(path string) error {
 	return nil
 }
 
-func (fs *FileSystem) Rename(oldName, newName string) error { return nil }
+func (fs *FolderFileSystem) Rename(oldName, newName string) error { return nil }
 
-func (fs *FileSystem) Stat(name string) (fi os.FileInfo, err error) {
+func (fs *FolderFileSystem) Stat(name string) (fi os.FileInfo, err error) {
 	asset, err := fs.root.Find(cleanPath(name))
 	if err == nil {
 		fi, err = asset.Stat()

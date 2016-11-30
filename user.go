@@ -11,7 +11,7 @@ import (
 type User struct {
 	Username string
 	Password string
-	fs       *FileSystem
+	fs       FileSystem
 }
 
 func (u *User) Authenticate(password string) (err error) {
@@ -55,7 +55,7 @@ func (um *UserManager) Add(username, password string) (user *User, err error) {
 		user = &User{
 			Username: username,
 		}
-		user.fs = NewFileSystem(user, um.fs)
+		user.fs = NewFolderFileSystem(user, um.fs)
 		user.SetPassword(password)
 		um.db[username] = user
 	}
