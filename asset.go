@@ -49,7 +49,7 @@ type FileInfo struct {
 }
 
 func NewFileInfo(file *File) (*FileInfo, error) {
-	osfi, err := backendFs.Stat(file.realPath)
+	osfi, err := backendFs.Stat(file.RealPath())
 	fi := &FileInfo{
 		FileInfo: osfi,
 		file:     file,

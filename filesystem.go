@@ -86,9 +86,21 @@ func NewFolderFileSystem(user *User) *FolderFileSystem {
 }
 
 func (fs *FolderFileSystem) Mkdir(name string, perm os.FileMode) error {
-	folder, err := fs.root.Mkfolder(cleanPath(name), perm)
-	if err == nil {
-		err = folder.SetOwner(fs.user)
+	name = path.Clean(name)
+	dirname := path.Dir(name)
+	filename := path.Base(name)
+
+	if name == "/" {
+		return os.ErrExist
+	}
+
+	asset, err := fs.root.Find(cleanPath(dirname))
+	if parent, ok := asset.(*Folder); ok {
+		var newFolder *Folder
+		newFolder, err = parent.Mkfolder(filename, perm)
+		if err == nil {
+			err = newFolder.SetOwner(fs.user)
+		}
 	}
 	return err
 }
@@ -149,10 +161,13 @@ func (fs *FolderFileSystem) OpenFile(name string, flag int, perm os.FileMode) (a
 		if hasFlags(flag, os.O_CREATE) {
 			err = nil
 			file := NewFile(backendFs, filename, perm)
-			err = backendFs.MkdirAll(path.Dir(file.realPath), 0700)
+			err = backendFs.MkdirAll(path.Dir(file.RealPath()), 0700)
 			if err == nil {
 				asset = file
 				err = base.addAsset(file)
+				if err == nil {
+					db.Save(file)
+				}
 			}
 		}
 	}
@@ -163,7 +178,7 @@ func (fs *FolderFileSystem) OpenFile(name string, flag int, perm os.FileMode) (a
 			return nil, &os.PathError{"open", name, ErrIsFolder}
 		}
 	case *File:
-		file.File, err = backendFs.OpenFile(file.realPath, flag, 0600)
+		file.File, err = backendFs.OpenFile(file.RealPath(), flag, 0600)
 	}
 	return asset, err
 }

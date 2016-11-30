@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/base32"
-	"github.com/satori/go.uuid"
 	"github.com/spf13/afero"
 	"os"
 	"strings"
@@ -10,20 +9,19 @@ import (
 
 type File struct {
 	afero.File
-	backend  afero.Fs
-	name     string
-	id       ID
-	owner    *User
-	mode     os.FileMode
-	realPath string
+	backend afero.Fs
+	name    string
+	id      ID
+	owner   *User
+	mode    os.FileMode
 }
 
 func NewFile(backend afero.Fs, name string, mode os.FileMode) *File {
 	return &File{
-		backend:  backend,
-		name:     name,
-		realPath: newPath(),
-		mode:     mode,
+		backend: backend,
+		id:      generateID(),
+		name:    name,
+		mode:    mode,
 	}
 }
 
@@ -37,12 +35,9 @@ func (f *File) Stat() (os.FileInfo, error) {
 	return NewFileInfo(f)
 }
 
-func (f *File) String() string { return f.name }
-
-func newPath() string {
+func (f *File) RealPath() string {
 	path := make([]string, 0)
-	id := uuid.NewV4()
-	idString := strings.TrimRight(base32.StdEncoding.EncodeToString(id[:]), "=")
+	idString := strings.TrimRight(base32.StdEncoding.EncodeToString(f.id[:]), "=")
 	for i, s := range strings.Split(idString, "") {
 		if i%4 == 0 {
 			path = append(path, s)

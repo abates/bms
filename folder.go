@@ -28,6 +28,7 @@ type Folder struct {
 func NewFolder(name string, perm os.FileMode) *Folder {
 	return &Folder{
 		name:    name,
+		id:      generateID(),
 		mode:    os.ModeDir | perm,
 		modTime: time.Now(),
 		entries: make(map[string]FolderEntry),
@@ -68,7 +69,9 @@ func (folder *Folder) Find(name []string) (Asset, error) {
 
 	if entry, found := folder.entries[name[0]]; found {
 		asset := db.Find(entry.id)
-		if folder, ok := asset.(*Folder); ok {
+		if asset == nil {
+			logger.Warnf("Folder entry %s/%s points to non-existant folder %s", folder.Name(), name[0], entry.id)
+		} else if folder, ok := asset.(*Folder); ok {
 			return folder.Find(name[1:])
 		} else if len(name) == 1 {
 			return asset, nil
@@ -79,19 +82,11 @@ func (folder *Folder) Find(name []string) (Asset, error) {
 
 func (folder *Folder) ID() ID { return folder.id }
 
-func (folder *Folder) Mkfolder(path []string, perm os.FileMode) (newFolder *Folder, err error) {
-	err = os.ErrNotExist
-	if len(path) == 1 {
-		newFolder = NewFolder(path[0], perm)
-		err = folder.addAsset(newFolder)
-	} else if len(path) > 1 {
-		if entry, found := folder.entries[path[0]]; found {
-			if entry.isFolder {
-				folder := db.Find(entry.id).(*Folder)
-				return folder.Mkfolder(path[1:], perm)
-			}
-			err = ErrNotFolder
-		}
+func (folder *Folder) Mkfolder(name string, perm os.FileMode) (newFolder *Folder, err error) {
+	newFolder = NewFolder(name, perm)
+	err = folder.addAsset(newFolder)
+	if err == nil {
+		db.Save(newFolder)
 	}
 	return
 }
@@ -105,8 +100,10 @@ func (folder *Folder) Owner() *User { return folder.owner }
 func (folder *Folder) Readdir(count int) ([]os.FileInfo, error) {
 	entries := make([]os.FileInfo, 0)
 	for name, entry := range folder.entries {
-		fi, err := db.Find(entry.id).Stat()
-		if err == nil {
+		asset := db.Find(entry.id)
+		if asset == nil {
+			logger.Warnf("Folder entry %s/%s points to non-existant folder %s", folder.Name(), name, entry.id)
+		} else if fi, err := asset.Stat(); err == nil {
 			entries = append(entries, fi)
 		} else {
 			logger.WithFields(map[string]interface{}{
@@ -126,15 +123,8 @@ func (folder *Folder) Seek(int64, int) (int64, error)         { return 0, ErrIsF
 
 func (folder *Folder) SetOwner(owner *User) error { folder.owner = owner; return nil }
 
-/*func (folder *Folder) Size() int64 {
-	return 0
-}*/
-
 func (folder *Folder) Stat() (os.FileInfo, error) {
 	return NewFolderInfo(folder)
 }
 
-func (folder *Folder) String() string { return fmt.Sprintf("%p:%s", folder, folder.name) }
-
-//func (folder *Folder) Sys() interface{}          { return nil }
 func (folder *Folder) Write([]byte) (int, error) { return 0, ErrIsFolder }
