@@ -3,12 +3,14 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"github.com/abates/bms/database"
 	"github.com/spf13/afero"
 	"golang.org/x/crypto/bcrypt"
 	"strings"
 )
 
 type User struct {
+	ID       database.ID
 	Username string
 	Password string
 	fs       FileSystem

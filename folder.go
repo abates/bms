@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"github.com/abates/bms/database"
+	"github.com/lunixbochs/struc"
+	"io"
 	"os"
 	"time"
 )
@@ -12,26 +16,61 @@ var (
 )
 
 type FolderEntry struct {
-	id       ID
-	isFolder bool
+	ID       database.ID `struc:"[16]byte"`
+	NameLen  int         `struc:"uint16,sizeof=Name"`
+	Name     string
+	IsFolder bool
+}
+
+func NewFolderEntry(id database.ID, name string, isFolder bool) *FolderEntry {
+	return &FolderEntry{
+		ID:       id,
+		NameLen:  len(name),
+		Name:     name,
+		IsFolder: isFolder,
+	}
+}
+
+func (fe *FolderEntry) Asset() (asset Asset, err error) {
+	if fe.IsFolder {
+		asset = &Folder{}
+		err = db.Find(fe.ID, asset.(*Folder))
+	} else {
+		asset = &File{}
+		err = db.Find(fe.ID, asset.(*File))
+	}
+	return asset, err
+}
+
+func (fe *FolderEntry) Remove() (err error) {
+	asset, _ := fe.Asset()
+	switch file := asset.(type) {
+	case *Folder:
+		file.RemoveAll()
+	case *File:
+		backendFs.Remove(file.RealPath())
+	}
+
+	if err == nil {
+		err = db.Delete(fe.ID)
+	}
+	return
+}
+
+func (fe *FolderEntry) SetName(name string) {
+	fe.NameLen = len(name)
+	fe.Name = name
 }
 
 type Folder struct {
-	name    string
-	entries map[string]FolderEntry
-	id      ID
-	mode    os.FileMode
-	modTime time.Time
-	owner   *User
+	header  *AssetHeader
+	entries map[string]*FolderEntry
 }
 
 func NewFolder(name string, perm os.FileMode) *Folder {
 	return &Folder{
-		name:    name,
-		id:      generateID(),
-		mode:    os.ModeDir | perm,
-		modTime: time.Now(),
-		entries: make(map[string]FolderEntry),
+		header:  NewAssetHeader(name, os.ModeDir|perm),
+		entries: make(map[string]*FolderEntry),
 	}
 }
 
@@ -42,14 +81,14 @@ func (folder *Folder) addAsset(asset Asset) error {
 
 	switch file := asset.(type) {
 	case *Folder:
-		folder.entries[asset.Name()] = FolderEntry{file.ID(), true}
+		folder.entries[asset.Name()] = NewFolderEntry(file.ID(), asset.Name(), true)
 	case *File:
-		folder.entries[asset.Name()] = FolderEntry{file.ID(), false}
+		folder.entries[asset.Name()] = NewFolderEntry(file.ID(), asset.Name(), false)
 	default:
 		logger.Warnf("Unknown asset type %T", asset)
 	}
 
-	folder.modTime = time.Now()
+	folder.header.ModTime = time.Now().Unix()
 	db.Save(folder)
 	return nil
 }
@@ -68,9 +107,9 @@ func (folder *Folder) Find(name []string) (Asset, error) {
 	}
 
 	if entry, found := folder.entries[name[0]]; found {
-		asset := db.Find(entry.id)
+		asset, _ := entry.Asset()
 		if asset == nil {
-			logger.Warnf("Folder entry %s/%s points to non-existant folder %s", folder.Name(), name[0], entry.id)
+			logger.Warnf("Folder entry %s/%s points to non-existant folder %s", folder.Name(), name[0], entry.ID)
 		} else if folder, ok := asset.(*Folder); ok {
 			return folder.Find(name[1:])
 		} else if len(name) == 1 {
@@ -80,29 +119,56 @@ func (folder *Folder) Find(name []string) (Asset, error) {
 	return nil, os.ErrNotExist
 }
 
-func (folder *Folder) ID() ID { return folder.id }
+func (folder *Folder) ID() database.ID { return folder.header.ID }
+
+func (folder *Folder) MarshalBinary() ([]byte, error) {
+	buffer := &bytes.Buffer{}
+	err := folder.header.Pack(buffer)
+	if err == nil {
+		for _, entry := range folder.entries {
+			err = struc.Pack(buffer, entry)
+			if err != nil {
+				break
+			}
+		}
+	}
+	return buffer.Bytes(), err
+}
 
 func (folder *Folder) Mkfolder(name string, perm os.FileMode) (newFolder *Folder, err error) {
 	newFolder = NewFolder(name, perm)
 	err = folder.addAsset(newFolder)
-	if err == nil {
-		db.Save(newFolder)
-	}
+	err = db.Save(newFolder)
 	return
 }
 
-func (folder *Folder) Mode() os.FileMode  { return folder.mode }
-func (folder *Folder) ModTime() time.Time { return folder.modTime }
-func (folder *Folder) Name() string       { return folder.name }
+func (folder *Folder) Mode() os.FileMode  { return folder.header.Mode }
+func (folder *Folder) ModTime() time.Time { return time.Unix(folder.header.ModTime, 0) }
 
-func (folder *Folder) Owner() *User { return folder.owner }
+func (folder *Folder) Move(name string, newFolder *Folder) (err error) {
+	if entry, found := folder.entries[name]; found {
+		delete(folder.entries, name)
+		newFolder.entries[name] = entry
+		db.Save(folder)
+		db.Save(newFolder)
+	} else {
+		err = os.ErrNotExist
+	}
+	return err
+}
+
+func (folder *Folder) Name() string       { return folder.header.Name }
+func (folder *Folder) Owner() database.ID { return folder.header.Owner }
 
 func (folder *Folder) Readdir(count int) ([]os.FileInfo, error) {
 	entries := make([]os.FileInfo, 0)
 	for name, entry := range folder.entries {
-		asset := db.Find(entry.id)
+		asset, err := entry.Asset()
+		if err != nil {
+			return entries, err
+		}
 		if asset == nil {
-			logger.Warnf("Folder entry %s/%s points to non-existant folder %s", folder.Name(), name, entry.id)
+			logger.Warnf("Folder entry %s/%s points to non-existant folder %s", folder.Name(), name, entry.ID)
 		} else if fi, err := asset.Stat(); err == nil {
 			entries = append(entries, fi)
 		} else {
@@ -116,12 +182,70 @@ func (folder *Folder) Readdir(count int) ([]os.FileInfo, error) {
 	return entries, nil
 }
 
-func (folder *Folder) Read([]byte) (int, error)               { return 0, ErrIsFolder }
-func (folder *Folder) RemoveAll(path []string) error          { return nil }
-func (folder *Folder) Rename(oldName, newName []string) error { return nil }
-func (folder *Folder) Seek(int64, int) (int64, error)         { return 0, ErrIsFolder }
+func (folder *Folder) Read([]byte) (int, error) { return 0, ErrIsFolder }
 
-func (folder *Folder) SetOwner(owner *User) error { folder.owner = owner; return nil }
+func (folder *Folder) Remove(name string) error {
+	err := os.ErrNotExist
+	if entry, found := folder.entries[name]; found {
+		err = entry.Remove()
+		if err == nil {
+			delete(folder.entries, name)
+			db.Save(folder)
+		}
+	}
+	return err
+}
+
+func (folder *Folder) RemoveAll() (err error) {
+	for _, entry := range folder.entries {
+		err1 := entry.Remove()
+		if err == nil {
+			err = err1
+		}
+	}
+	return
+}
+
+func (folder *Folder) Rename(oldName, newName string) error {
+	err := os.ErrNotExist
+	if entry, found := folder.entries[oldName]; found {
+		asset, _ := entry.Asset()
+		if asset != nil {
+			err = asset.SetName(newName)
+		}
+
+		if err == nil {
+			entry.SetName(newName)
+			delete(folder.entries, oldName)
+			folder.entries[newName] = entry
+			db.Save(folder)
+		}
+	}
+	return err
+}
+
+func (folder *Folder) UnmarshalBinary(data []byte) error {
+	folder.header = &AssetHeader{}
+	buffer := bytes.NewBuffer(data)
+	err := folder.header.Unpack(buffer)
+	for err == nil {
+		folder.entries = make(map[string]*FolderEntry)
+		entry := &FolderEntry{}
+		err = struc.Unpack(buffer, entry)
+		if err == nil {
+			folder.entries[entry.Name] = entry
+		}
+	}
+
+	if err == io.EOF {
+		err = nil
+	}
+	return err
+}
+
+func (folder *Folder) Seek(int64, int) (int64, error)   { return 0, ErrIsFolder }
+func (folder *Folder) SetName(name string) error        { folder.header.SetName(name); return nil }
+func (folder *Folder) SetOwner(owner database.ID) error { folder.header.Owner = owner; return nil }
 
 func (folder *Folder) Stat() (os.FileInfo, error) {
 	return NewFolderInfo(folder)

@@ -14,11 +14,17 @@ type WebdavFileSystem struct {
 	root FileSystem
 }
 
+var lockSystem webdav.LockSystem
+
 func NewWebdavFileSystem(user *User) (wfs *WebdavFileSystem, err error) {
+	if lockSystem == nil {
+		lockSystem = webdav.NewMemLS()
+	}
+
 	wfs = &WebdavFileSystem{
 		Handler: &webdav.Handler{
 			Prefix:     "/webdav",
-			LockSystem: webdav.NewMemLS(),
+			LockSystem: lockSystem,
 			Logger: func(r *http.Request, err error) {
 				if err != nil {
 					logger.WithFields(map[string]interface{}{
@@ -55,7 +61,7 @@ func (fs *WebdavFileSystem) Stat(ctx context.Context, name string) (os.FileInfo,
 	return fs.root.Stat(name)
 }
 
-func cleanPath(name string) []string {
+func splitPath(name string) []string {
 	if name == "/" {
 		return []string{}
 	} else if name[0] != '/' {
@@ -85,21 +91,23 @@ func NewFolderFileSystem(user *User) *FolderFileSystem {
 	}
 }
 
-func (fs *FolderFileSystem) Mkdir(name string, perm os.FileMode) error {
+func cleanPath(name string) (string, string) {
 	name = path.Clean(name)
-	dirname := path.Dir(name)
-	filename := path.Base(name)
+	return path.Dir(name), path.Base(name)
+}
 
+func (fs *FolderFileSystem) Mkdir(name string, perm os.FileMode) error {
+	dirname, filename := cleanPath(name)
 	if name == "/" {
 		return os.ErrExist
 	}
 
-	asset, err := fs.root.Find(cleanPath(dirname))
+	asset, err := fs.root.Find(splitPath(dirname))
 	if parent, ok := asset.(*Folder); ok {
 		var newFolder *Folder
 		newFolder, err = parent.Mkfolder(filename, perm)
 		if err == nil {
-			err = newFolder.SetOwner(fs.user)
+			err = newFolder.SetOwner(fs.user.ID)
 		}
 	}
 	return err
@@ -136,9 +144,7 @@ func hasFlags(flag, search int) bool {
 }
 
 func (fs *FolderFileSystem) OpenFile(name string, flag int, perm os.FileMode) (asset Asset, err error) {
-	name = path.Clean(name)
-	dirname := path.Dir(name)
-	filename := path.Base(name)
+	dirname, filename := cleanPath(name)
 
 	if name == "/" {
 		if hasFlags(flag, os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_CREATE|os.O_TRUNC) {
@@ -147,7 +153,7 @@ func (fs *FolderFileSystem) OpenFile(name string, flag int, perm os.FileMode) (a
 		return fs.root, nil
 	}
 
-	asset, err = fs.root.Find(cleanPath(dirname))
+	asset, err = fs.root.Find(splitPath(dirname))
 
 	var base *Folder
 	if folder, ok := asset.(*Folder); ok {
@@ -183,14 +189,54 @@ func (fs *FolderFileSystem) OpenFile(name string, flag int, perm os.FileMode) (a
 	return asset, err
 }
 
-func (fs *FolderFileSystem) RemoveAll(path string) error {
-	return nil
+func (fs *FolderFileSystem) RemoveAll(name string) error {
+	dirname, filename := cleanPath(name)
+	asset, err := fs.root.Find(splitPath(dirname))
+	if err == nil {
+		switch file := asset.(type) {
+		case *Folder:
+			err = file.Remove(filename)
+		case *File:
+			err = &os.PathError{"removeall", dirname, ErrNotFolder}
+		}
+	}
+	return err
 }
 
-func (fs *FolderFileSystem) Rename(oldName, newName string) error { return nil }
+func (fs *FolderFileSystem) Rename(oldName, newName string) (err error) {
+	oldDirname, oldFilename := cleanPath(oldName)
+	newDirname, newFilename := cleanPath(newName)
+
+	asset, err := fs.root.Find(splitPath(oldDirname))
+	if err != nil {
+		return
+	}
+
+	if oldDir, ok := asset.(*Folder); ok {
+		if oldName != newName {
+			err = oldDir.Rename(oldFilename, newFilename)
+		}
+
+		if err == nil && oldDirname != newDirname {
+			asset, err = fs.root.Find(splitPath(newDirname))
+			if err != nil {
+				return err
+			}
+
+			if newDir, ok := asset.(*Folder); ok {
+				err = oldDir.Move(newFilename, newDir)
+			} else {
+				err = &os.PathError{"rename", newDirname, ErrNotFolder}
+			}
+		}
+	} else {
+		err = &os.PathError{"rename", newDirname, ErrNotFolder}
+	}
+	return
+}
 
 func (fs *FolderFileSystem) Stat(name string) (os.FileInfo, error) {
-	asset, err := fs.root.Find(cleanPath(name))
+	asset, err := fs.root.Find(splitPath(name))
 	if err == nil {
 		return asset.Stat()
 	}

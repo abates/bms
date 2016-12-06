@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/abates/bms/database"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/afero"
 	"net/http"
@@ -10,7 +11,7 @@ import (
 
 var (
 	um        *UserManager
-	db        Database
+	db        database.Database
 	backendFs afero.Fs
 )
 
@@ -34,10 +35,12 @@ func basicAuthHandler() gin.HandlerFunc {
 }
 
 func init() {
-	db = NewMapDatabase()
+	db = database.NewMapDatabase()
 	backendFs = afero.NewBasePathFs(afero.NewOsFs(), "/Users/abates/bms")
 	um = NewUserManager()
-	if user, err := um.Add("user1", "1111"); err == nil {
+	um.Add("user1", "1111")
+	um.Add("user2", "2222")
+	/*if user, err := um.Add("user1", "1111"); err == nil {
 		user.fs.Mkdir("/dir1", 0700)
 		user.fs.Mkdir("/dir1/dir3", 0700)
 		user.fs.Mkdir("/dir2", 0700)
@@ -46,10 +49,10 @@ func init() {
 	}
 
 	if user, err := um.Add("user2", "2222"); err == nil {
-		user.fs.Mkdir("dir6", 0700)
+		/*user.fs.Mkdir("dir6", 0700)
 		user.fs.Mkdir("dir7", 0700)
 		user.fs.Mkdir("dir6/dir8", 0700)
-	}
+	}*/
 }
 
 func main() {
@@ -61,20 +64,21 @@ func main() {
 	r.StaticFile("/index.html", "app/index.html")
 
 	webdavRoute := r.Group("/webdav/", basicAuthHandler())
-	for _, method := range []string{"OPTIONS", "GET", "HEAD", "POST", "DELETE", "PUT", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK", "PROPFIND", "PROPPATCH"} {
-		webdavRoute.Handle(method, "*path", func(c *gin.Context) {
-			u, _ := c.Get(gin.AuthUserKey)
-			if user, ok := u.(*User); ok {
-				wfs, err := NewWebdavFileSystem(user)
-				if err == nil {
-					wfs.ServeHTTP(c.Writer, c.Request)
-				} else {
-					c.AbortWithError(http.StatusInternalServerError, err)
-				}
+	handler := func(c *gin.Context) {
+		u, _ := c.Get(gin.AuthUserKey)
+		if user, ok := u.(*User); ok {
+			wfs, err := NewWebdavFileSystem(user)
+			if err == nil {
+				wfs.ServeHTTP(c.Writer, c.Request)
 			} else {
-				c.AbortWithStatus(http.StatusNotFound)
+				c.AbortWithError(http.StatusInternalServerError, err)
 			}
-		})
+		} else {
+			c.AbortWithStatus(http.StatusNotFound)
+		}
+	}
+	for _, method := range []string{"OPTIONS", "GET", "HEAD", "POST", "DELETE", "PUT", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK", "PROPFIND", "PROPPATCH"} {
+		webdavRoute.Handle(method, "*path", handler)
 	}
 
 	r.Run(":8080")
