@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/abates/bms/database"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/afero"
@@ -10,22 +11,27 @@ import (
 )
 
 var (
-	um        *UserManager
-	db        database.Database
-	backendFs afero.Fs
+	um                   *UserManager
+	db                   database.Database
+	backendFs            afero.Fs
+	ErrInvalidAuthString = fmt.Errorf("invalid authorization string")
 )
 
 func basicAuthHandler() gin.HandlerFunc {
 	realm := "Basic realm=" + strconv.Quote("WebDav Realm")
 
 	return func(c *gin.Context) {
-		var err error
 		var user *User
-		if authString := strings.SplitN(c.Request.Header.Get("Authorization"), " ", 2); len(authString) == 2 {
+		var err error
+		authString := strings.SplitN(c.Request.Header.Get("Authorization"), " ", 2)
+		if len(authString) == 2 {
 			user, err = um.BasicAuthenticate(authString[1])
 		}
 
 		if user == nil || err != nil {
+			if err != nil {
+				logger.Warnf("%v", err)
+			}
 			c.Header("WWW-Authenticate", realm)
 			c.AbortWithStatus(http.StatusUnauthorized)
 		} else {
@@ -35,24 +41,22 @@ func basicAuthHandler() gin.HandlerFunc {
 }
 
 func init() {
-	db = database.NewMapDatabase()
+	var err error
+	db, err = database.OpenBoltDb("/Users/abates/bms/bolt.db")
+	if err != nil {
+		panic(err.Error())
+	}
 	backendFs = afero.NewBasePathFs(afero.NewOsFs(), "/Users/abates/bms")
 	um = NewUserManager()
-	um.Add("user1", "1111")
-	um.Add("user2", "2222")
-	/*if user, err := um.Add("user1", "1111"); err == nil {
-		user.fs.Mkdir("/dir1", 0700)
-		user.fs.Mkdir("/dir1/dir3", 0700)
-		user.fs.Mkdir("/dir2", 0700)
-		user.fs.Mkdir("/dir2/dir4", 0700)
-		user.fs.Mkdir("/dir2/dir4/dir5", 0700)
+	_, err = um.Add("user1", "1111")
+	if err != nil {
+		logger.Warn(err.Error())
 	}
 
-	if user, err := um.Add("user2", "2222"); err == nil {
-		/*user.fs.Mkdir("dir6", 0700)
-		user.fs.Mkdir("dir7", 0700)
-		user.fs.Mkdir("dir6/dir8", 0700)
-	}*/
+	_, err = um.Add("user2", "2222")
+	if err != nil {
+		logger.Warn(err.Error())
+	}
 }
 
 func main() {

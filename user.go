@@ -1,19 +1,23 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"github.com/abates/bms/database"
-	"github.com/spf13/afero"
+	"github.com/lunixbochs/struc"
 	"golang.org/x/crypto/bcrypt"
 	"strings"
 )
 
 type User struct {
-	ID       database.ID
-	Username string
-	Password string
-	fs       FileSystem
+	ID           database.ID `struc:"[16]byte"`
+	UsernameLen  int         `struc:"uint16,sizeof=Username"`
+	Username     string      `struc:string`
+	PasswordLen  int         `struc:"uint16,sizeof=Password"`
+	Password     string      `struc:string`
+	RootFolderID database.ID `struc:"[16]byte"`
 }
 
 func (u *User) Authenticate(password string) (err error) {
@@ -29,6 +33,13 @@ func (u *User) ChangePassword(oldPassword, newPassword string) (err error) {
 	return
 }
 
+func (u *User) MarshalBinary() ([]byte, error) {
+	buffer := &bytes.Buffer{}
+	err := struc.Pack(buffer, u)
+	logger.Infof("Marshal:\n%s", hex.Dump(buffer.Bytes()))
+	return buffer.Bytes(), err
+}
+
 func (u *User) SetPassword(password string) (err error) {
 	var p []byte
 	p, err = bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -38,38 +49,46 @@ func (u *User) SetPassword(password string) (err error) {
 	return
 }
 
+func (u *User) UnmarshalBinary(data []byte) error {
+	buffer := bytes.NewBuffer(data)
+	err := struc.Unpack(buffer, u)
+	return err
+}
+
 type UserManager struct {
-	db map[string]*User
-	fs afero.Fs
 }
 
 func NewUserManager() *UserManager {
-	return &UserManager{
-		db: make(map[string]*User),
-	}
+	return &UserManager{}
 }
 
-func (um *UserManager) Add(username, password string) (user *User, err error) {
-	if _, found := um.db[username]; found {
+func (um *UserManager) Add(username, password string) (*User, error) {
+	user := &User{}
+	err := db.Find(database.ID(username), user)
+	if err == nil {
 		err = fmt.Errorf("%s already exists", username)
-	} else {
-		user = &User{
-			Username: username,
-		}
-		user.fs = NewFolderFileSystem(user)
+	} else if err == database.ErrNotFound {
+		user.ID = database.NewID()
+		user.Username = username
 		user.SetPassword(password)
-		um.db[username] = user
+		rootFolder := NewFolder("", 0700)
+		user.RootFolderID = rootFolder.ID()
+		err = db.Save(rootFolder.ID(), rootFolder)
+		if err == nil {
+			err = db.Save(database.ID(username), user)
+		}
 	}
-	return
+
+	return user, err
 }
 
-func (um *UserManager) Find(username string) (user *User, err error) {
-	if u, found := um.db[username]; found {
-		user = u
-	} else {
+func (um *UserManager) Find(username string) (*User, error) {
+	user := &User{}
+	err := db.Find(database.ID(username), user)
+	if err == database.ErrNotFound {
 		err = fmt.Errorf("Could not find %s in the database", username)
 	}
-	return
+	return user, err
 }
 
 func (um *UserManager) Authenticate(username, password string) (user *User, err error) {

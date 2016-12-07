@@ -89,7 +89,7 @@ func (folder *Folder) addAsset(asset Asset) error {
 	}
 
 	folder.header.ModTime = time.Now().Unix()
-	db.Save(folder)
+	db.Save(folder.ID(), folder)
 	return nil
 }
 
@@ -138,7 +138,7 @@ func (folder *Folder) MarshalBinary() ([]byte, error) {
 func (folder *Folder) Mkfolder(name string, perm os.FileMode) (newFolder *Folder, err error) {
 	newFolder = NewFolder(name, perm)
 	err = folder.addAsset(newFolder)
-	err = db.Save(newFolder)
+	err = db.Save(newFolder.ID(), newFolder)
 	return
 }
 
@@ -149,8 +149,8 @@ func (folder *Folder) Move(name string, newFolder *Folder) (err error) {
 	if entry, found := folder.entries[name]; found {
 		delete(folder.entries, name)
 		newFolder.entries[name] = entry
-		db.Save(folder)
-		db.Save(newFolder)
+		db.Save(folder.ID(), folder)
+		db.Save(newFolder.ID(), newFolder)
 	} else {
 		err = os.ErrNotExist
 	}
@@ -190,7 +190,7 @@ func (folder *Folder) Remove(name string) error {
 		err = entry.Remove()
 		if err == nil {
 			delete(folder.entries, name)
-			db.Save(folder)
+			db.Save(folder.ID(), folder)
 		}
 	}
 	return err
@@ -218,7 +218,7 @@ func (folder *Folder) Rename(oldName, newName string) error {
 			entry.SetName(newName)
 			delete(folder.entries, oldName)
 			folder.entries[newName] = entry
-			db.Save(folder)
+			db.Save(folder.ID(), folder)
 		}
 	}
 	return err
@@ -228,8 +228,8 @@ func (folder *Folder) UnmarshalBinary(data []byte) error {
 	folder.header = &AssetHeader{}
 	buffer := bytes.NewBuffer(data)
 	err := folder.header.Unpack(buffer)
+	folder.entries = make(map[string]*FolderEntry)
 	for err == nil {
-		folder.entries = make(map[string]*FolderEntry)
 		entry := &FolderEntry{}
 		err = struc.Unpack(buffer, entry)
 		if err == nil {

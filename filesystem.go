@@ -16,12 +16,13 @@ type WebdavFileSystem struct {
 
 var lockSystem webdav.LockSystem
 
-func NewWebdavFileSystem(user *User) (wfs *WebdavFileSystem, err error) {
+func NewWebdavFileSystem(user *User) (*WebdavFileSystem, error) {
 	if lockSystem == nil {
 		lockSystem = webdav.NewMemLS()
 	}
 
-	wfs = &WebdavFileSystem{
+	fs, err := NewFolderFileSystem(user)
+	wfs := &WebdavFileSystem{
 		Handler: &webdav.Handler{
 			Prefix:     "/webdav",
 			LockSystem: lockSystem,
@@ -35,10 +36,10 @@ func NewWebdavFileSystem(user *User) (wfs *WebdavFileSystem, err error) {
 				}
 			},
 		},
-		root: user.fs,
+		root: fs,
 	}
 	wfs.Handler.FileSystem = wfs
-	return
+	return wfs, err
 }
 
 func (fs *WebdavFileSystem) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
@@ -84,11 +85,14 @@ type FolderFileSystem struct {
 	root *Folder
 }
 
-func NewFolderFileSystem(user *User) *FolderFileSystem {
+func NewFolderFileSystem(user *User) (*FolderFileSystem, error) {
+	rootFolder := &Folder{}
+	err := db.Find(user.RootFolderID, rootFolder)
+	logger.Infof("New Folder File System for root: %v", rootFolder.ID())
 	return &FolderFileSystem{
 		user: user,
-		root: NewFolder("", 0700),
-	}
+		root: rootFolder,
+	}, err
 }
 
 func cleanPath(name string) (string, string) {
@@ -172,7 +176,7 @@ func (fs *FolderFileSystem) OpenFile(name string, flag int, perm os.FileMode) (a
 				asset = file
 				err = base.addAsset(file)
 				if err == nil {
-					db.Save(file)
+					db.Save(file.ID(), file)
 				}
 			}
 		}
