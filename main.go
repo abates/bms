@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/abates/bms/database"
+	"github.com/abates/bms/filesystem"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/afero"
 	"net/http"
@@ -13,7 +14,6 @@ import (
 var (
 	um                   *UserManager
 	db                   database.Database
-	backendFs            afero.Fs
 	ErrInvalidAuthString = fmt.Errorf("invalid authorization string")
 )
 
@@ -46,7 +46,8 @@ func init() {
 	if err != nil {
 		panic(err.Error())
 	}
-	backendFs = afero.NewBasePathFs(afero.NewOsFs(), "/Users/abates/bms")
+	filesystem.Db = db
+	filesystem.BackendFs = afero.NewBasePathFs(afero.NewOsFs(), "/Users/abates/bms")
 	um = NewUserManager()
 	_, err = um.Add("user1", "1111")
 	if err != nil {
@@ -71,8 +72,10 @@ func main() {
 	handler := func(c *gin.Context) {
 		u, _ := c.Get(gin.AuthUserKey)
 		if user, ok := u.(*User); ok {
-			wfs, err := NewWebdavFileSystem(user)
+			rootFolder := &filesystem.Folder{}
+			err := db.Find(user.RootFolderID, rootFolder)
 			if err == nil {
+				wfs := filesystem.NewWebdavFileSystem(user.ID, rootFolder)
 				wfs.ServeHTTP(c.Writer, c.Request)
 			} else {
 				c.AbortWithError(http.StatusInternalServerError, err)

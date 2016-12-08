@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/abates/bms/database"
+	"github.com/abates/bms/filesystem"
 	"github.com/lunixbochs/struc"
 	"golang.org/x/crypto/bcrypt"
 	"strings"
@@ -71,7 +72,7 @@ func (um *UserManager) Add(username, password string) (*User, error) {
 		user.ID = database.NewID()
 		user.Username = username
 		user.SetPassword(password)
-		rootFolder := NewFolder("", 0700)
+		rootFolder := filesystem.NewFolder("", 0700)
 		user.RootFolderID = rootFolder.ID()
 		err = db.Save(rootFolder.ID(), rootFolder)
 		if err == nil {
